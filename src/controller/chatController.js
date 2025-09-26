@@ -1,118 +1,62 @@
-const fetch = require("node-fetch");
+const Groq = require("groq-sdk");
 const Chat = require("../models/Chat");
+
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY
+});
 
 const sendMessage = async (req, res) => {
   const { message } = req.body;
   if (!message) return res.status(400).json({ message: "No message provided" });
 
   try {
-    const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-    if (!GEMINI_API_KEY) {
+    const GROQ_API_KEY = process.env.GROQ_API_KEY;
+    if (!GROQ_API_KEY) {
       return res.status(500).json({
-        message: "Gemini API key not configured.",
+        message: "Groq API key not configured. Please add GROQ_API_KEY to your .env file",
       });
     }
 
-    // Use env var or default to correct, supported model
-    const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-1.5-flash";
+    // Current available Groq models (as of 2024)
+    const availableModels = [
+      "llama-3.1-8b-instant",      
+      "llama-3.1-70b-versatile",   
+      "mixtral-8x7b-32768",        
+      "gemma2-9b-it"               
+    ];
 
-    // Gemini endpoint with correct model and key in query param
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+    const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.1-8b-instant";
+    
+    // Validate model choice
+    if (!availableModels.includes(GROQ_MODEL)) {
+      return res.status(400).json({
+        message: `Invalid model specified. Available models: ${availableModels.join(", ")}`,
+      });
+    }
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            parts: [
-              {
-                text: `You are a helpful AI assistant for a voice chatbot. Keep responses short and engaging. User: ${message}`,
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          maxOutputTokens: 100,
-          temperature: 0.7,
-          topP: 0.8,
-          topK: 40,
+    const completion = await groq.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful AI assistant for a voice chatbot. Keep responses short, engaging, and conversational (under 100 words). Respond in a friendly tone suitable for voice interaction."
         },
-      }),
+        {
+          role: "user",
+          content: message
+        }
+      ],
+      model: GROQ_MODEL,
+      max_tokens: 150,
+      temperature: 0.7,
+      top_p: 0.8,
+      stream: false,
     });
 
-    if (!response.ok) {
-      const errData = await response.json();
-      console.error(
-        "❌ Gemini Error Details:",
-        JSON.stringify(errData, null, 2)
-      );
-
-      const errorMessage = errData.error?.message || "Unknown error";
-      const errorCode = errData.error?.code || "";
-      const errorStatus = errData.error?.status || "";
-
-      // Enhanced key error handling
-      if (
-        response.status === 400 ||
-        errorCode === 400 ||
-        errorMessage.includes("API Key not found") ||
-        errorMessage.includes("API_KEY_INVALID")
-      ) {
-        return res.status(500).json({
-          message:
-            "Invalid Gemini API key (400). Regenerate a new key at aistudio.google.com (delete old one first). Ensure no spaces in .env. Test with curl: curl 'https://generativelanguage.googleapis.com/v1beta/models?key=YOUR_NEW_KEY'",
-        });
-      }
-      if (
-        response.status === 404 ||
-        errorMessage.includes("not found") ||
-        errorMessage.includes("not supported")
-      ) {
-        return res.status(500).json({
-          message: `Model "${GEMINI_MODEL}" not found (404). Switch to "gemini-1.0-pro" in .env and restart.`,
-        });
-      }
-      if (response.status === 403 || errorMessage.includes("quota")) {
-        return res.status(500).json({
-          message:
-            "Gemini quota exceeded. Check limits at aistudio.google.com.",
-        });
-      }
-      if (response.status === 429 || errorMessage.includes("rate_limit")) {
-        return res.status(500).json({
-          message: "Gemini rate limit (15 RPM). Wait 1 minute.",
-        });
-      }
-      if (response.status === 401 || errorMessage.includes("API key")) {
-        return res.status(500).json({
-          message:
-            "Unauthorized (401). Regenerate API key at aistudio.google.com.",
-        });
-      }
-
-      return res.status(500).json({
-        message: "Gemini API error",
-        details: errorMessage,
-      });
-    }
-
-    const data = await response.json();
-
-    let botText =
-      data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ||
-      "No response generated.";
+    let botText = completion.choices[0]?.message?.content?.trim() || "No response generated.";
 
     if (!botText || botText.length < 5) {
-      botText = "That's a good question! Tell me more about it.";
+      botText = "That's an interesting question! Could you tell me more about what you're looking for?";
     }
-
-    botText = botText
-      .replace(`User: ${message}`, "")
-      .replace(/^\s+/, "")
-      .trim();
 
     const chat = new Chat({
       userId: req.user._id,
@@ -124,25 +68,110 @@ const sendMessage = async (req, res) => {
     res.json({
       response: botText,
       chatId: chat._id,
+      modelUsed: GROQ_MODEL
     });
   } catch (error) {
-    console.error("Server:", error.message);
-    res.status(500).json({ message: "Server error", error: error.message });
+    console.error("Groq API Error:", error);
+
+    // Enhanced error handling for Groq specific errors
+    if (error.status === 400) {
+      if (error.error?.code === 'model_decommissioned') {
+        return res.status(400).json({
+          message: "The selected model is no longer available. Please update GROQ_MODEL in your .env file to one of: llama-3.1-8b-instant, llama-3.1-70b-versatile, mixtral-8x7b-32768, gemma2-9b-it",
+          details: error.error.message
+        });
+      }
+      return res.status(400).json({
+        message: "Invalid request to Groq API",
+        details: error.error?.message || "Please check your request parameters"
+      });
+    }
+    
+    if (error.status === 401) {
+      return res.status(500).json({
+        message: "Invalid Groq API key. Please check your GROQ_API_KEY in the .env file and ensure it's correct.",
+        details: "You can get a free API key from https://console.groq.com"
+      });
+    }
+    
+    if (error.status === 429) {
+      return res.status(429).json({
+        message: "Rate limit exceeded. Groq has usage limits. Please try again in a few moments.",
+        details: "Free tier has rate limits. Consider upgrading if you need higher limits."
+      });
+    }
+    
+    if (error.status === 404) {
+      return res.status(500).json({
+        message: "Model not found. The specified Groq model is not available.",
+        details: error.error?.message || "Please check the model name in your .env file"
+      });
+    }
+
+    // Generic error
+    res.status(500).json({ 
+      message: "Server error while processing your request",
+      error: error.message 
+    });
   }
 };
 
 const getHistory = async (req, res) => {
   try {
     const chats = await Chat.find({ userId: req.user._id }).sort({
-      createdAt: 1,
+      createdAt: -1, // Show latest first
+    }).limit(50); // Limit to 50 most recent chats
+    
+    res.json({ 
+      chats,
+      total: chats.length
     });
-    res.json({ chats });
   } catch (error) {
-    console.error("Error:", error.message);
-    res
-      .status(500)
-      .json({ message: "Failed to fetch chat history", error: error.message });
+    console.error("Error fetching chat history:", error.message);
+    res.status(500).json({ 
+      message: "Failed to fetch chat history", 
+      error: error.message 
+    });
   }
 };
 
-module.exports = { sendMessage, getHistory };
+// Optional: Add a models endpoint to check available models
+const getAvailableModels = async (req, res) => {
+  try {
+    const availableModels = [
+      { 
+        id: "llama-3.1-8b-instant", 
+        name: "Llama 3.1 8B Instant", 
+        description: "Fast and efficient for real-time applications",
+        max_tokens: 8192 
+      },
+      { 
+        id: "llama-3.1-70b-versatile", 
+        name: "Llama 3.1 70B Versatile", 
+        description: "More capable model for complex tasks",
+        max_tokens: 8192 
+      },
+      { 
+        id: "mixtral-8x7b-32768", 
+        name: "Mixtral 8x7B", 
+        description: "Mixture of Experts model with large context",
+        max_tokens: 32768 
+      },
+      { 
+        id: "gemma2-9b-it", 
+        name: "Gemma 2 9B", 
+        description: "Google's lightweight model",
+        max_tokens: 8192 
+      }
+    ];
+    
+    res.json({ models: availableModels });
+  } catch (error) {
+    res.status(500).json({ 
+      message: "Error fetching model information", 
+      error: error.message 
+    });
+  }
+};
+
+module.exports = { sendMessage, getHistory, getAvailableModels };
