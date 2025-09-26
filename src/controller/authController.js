@@ -27,13 +27,7 @@ const register = async (req, res) => {
   }
 };
 
-// // Middleware - Fix CORS for cross-origin cookies
-// app.use(cors({
-//   origin: 'http://localhost:3000', // Your frontend URL
-//   credentials: true, // This is crucial for cookies
-//   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-//   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
-// }));
+
 
 // Also update your cookie settings in authController.js:
 const login = async (req, res) => {
@@ -49,10 +43,9 @@ const login = async (req, res) => {
       expiresIn: "7d",
     });
     
-    // Return token in response body for frontend to use
     res.json({ 
       user: { id: user._id, name: user.name, email: user.email },
-      token: token // This is what the frontend needs
+      token: token 
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });

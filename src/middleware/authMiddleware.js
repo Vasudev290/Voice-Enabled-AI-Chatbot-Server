@@ -3,10 +3,8 @@ const User = require("../models/User");
 
 const userAuth = async (req, res, next) => {
   try {
-    // First try to get token from cookies
     let token = req.cookies.token;
     
-    // If not in cookies, try Authorization header
     if (!token && req.headers.authorization) {
       token = req.headers.authorization.replace('Bearer ', '');
     }

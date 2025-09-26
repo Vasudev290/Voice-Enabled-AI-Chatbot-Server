@@ -119,8 +119,8 @@ const sendMessage = async (req, res) => {
 const getHistory = async (req, res) => {
   try {
     const chats = await Chat.find({ userId: req.user._id }).sort({
-      createdAt: -1, // Show latest first
-    }).limit(50); // Limit to 50 most recent chats
+      createdAt: -1, 
+    }).limit(50); 
     
     res.json({ 
       chats,
