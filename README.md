@@ -20,6 +20,18 @@ The backend handles:
 
 
 
+## ⚡ API Endpoints
+
+### Auth
+- `POST /api/auth/register` → Register user
+- `POST /api/auth/login` → Login user
+- `POST /api/auth/logout` → Logout user
+
+### Chat
+- `POST /api/chat` → Send message (JWT protected)
+- `GET /api/chat/history` → Fetch last 50 chats (JWT protected)
+
+
 ## 🛠️ Tech Stack
 - **Node.js** + **Express.js**  
 - **MongoDB** (Mongoose ODM)  
