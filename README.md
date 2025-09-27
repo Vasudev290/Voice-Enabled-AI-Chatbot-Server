@@ -37,7 +37,7 @@ The backend handles:
 - **MongoDB** (Mongoose ODM)  
 - **JWT** (jsonwebtoken)  
 - **Bcrypt.js** (password hashing)  
-- **Google Gemini API** (free tier: 15 RPM, 1M tokens/day)  
+- **Groq API** (Llama 3.1, Mixtral, Gemma models)  
 - **dotenv**, **nodemon**  
 
 
