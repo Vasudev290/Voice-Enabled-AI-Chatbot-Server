@@ -13,11 +13,11 @@ const sendMessage = async (req, res) => {
     const GROQ_API_KEY = process.env.GROQ_API_KEY;
     if (!GROQ_API_KEY) {
       return res.status(500).json({
-        message: "Groq API key not configured. Please add GROQ_API_KEY to your .env file",
+        message: "Groq API key not configured.",
       });
     }
 
-    // Current available Groq models (as of 2024)
+    // Current available Groq models
     const availableModels = [
       "llama-3.1-8b-instant",      
       "llama-3.1-70b-versatile",   

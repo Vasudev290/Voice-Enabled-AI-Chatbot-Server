@@ -9,7 +9,6 @@ const userAuth = async (req, res, next) => {
       token = req.headers.authorization.replace('Bearer ', '');
     }
 
-
     if (!token) {
       return res.status(401).json({ message: "Please login properly" });
     }

@@ -27,9 +27,6 @@ const register = async (req, res) => {
   }
 };
 
-
-
-// Also update your cookie settings in authController.js:
 const login = async (req, res) => {
   const { email, password } = req.body;
   try {
